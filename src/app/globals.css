@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* root variable for using in raw css */
+:root {
+    --background: #fefee9;
+    --foreground: #171717;
+}
+
+/* We can set custom theme property here */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-primary: #34c759;
+    --color-secondary: #626161;
+    --font-montserrat: "Montserrat", sans-serif;
+    --font-noto: "noto-bengali", sans-serif;
+}
+
+@keyframes toast-shrink {
+    from {
+        width: 100%;
+    }
+    to {
+        width: 0%;
+    }
+}
+
+@utility animate-toast-shrink {
+    animation: toast-shrink 4500ms linear forwards;
+}
+
+/* No Dark Mode Support Till Now, Commenting this off */
+/* 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+} 
+*/
