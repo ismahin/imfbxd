@@ -15,7 +15,7 @@ export default function Gallery() {
 
 	const images =
 		data?.results?.map((item) => ({
-			src: getImageUrl(item.url),
+			src: getImageUrl(item.url) || "/assets/images/question.png",
 			alt: item.alt || item.title,
 		})) ?? [];
 

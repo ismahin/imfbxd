@@ -191,6 +191,9 @@ export default function GalleryPage() {
                                 alt={item.alt}
                                 className="h-36 w-full cursor-pointer object-cover"
                                 onClick={() => setPreview(item)}
+                                onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src = "/assets/images/question.png";
+                                }}
                             />
                             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/30 group-hover:opacity-100">
                                 <button

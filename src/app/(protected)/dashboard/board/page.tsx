@@ -187,8 +187,12 @@ export default function BoardPage() {
                                             src={getImageUrl(m.profile_picture)}
                                             alt={m.name}
                                             className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-green-200"
+                                            onError={(e) => {
+                                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                                            }}
                                         />
-                                    ) : (
+                                    ) : null}
+                                    {!m.profile_picture && (
                                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 text-lg font-bold text-white shadow-sm">
                                             {m.name.charAt(0)}
                                         </div>

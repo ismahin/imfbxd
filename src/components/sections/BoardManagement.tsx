@@ -45,8 +45,12 @@ export default function BoardManagement() {
 												src={imageUrl}
 												alt={member.name}
 												className="h-full w-full object-cover object-top"
+												onError={(e) => {
+													(e.currentTarget as HTMLImageElement).style.display = "none";
+												}}
 											/>
-										) : (
+										) : null}
+										{!imageUrl && (
 											<Image
 												src="/assets/images/question.png"
 												alt={member.name}

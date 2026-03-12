@@ -364,8 +364,12 @@ export default function MembersPage() {
                                                         src={profileImageUrl(m.profile_picture)!}
                                                         alt=""
                                                         className="h-full w-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                                                        }}
                                                     />
-                                                ) : (
+                                                ) : null}
+                                                {!profileImageUrl(m.profile_picture) && (
                                                     <span className="flex h-full w-full items-center justify-center text-xs font-bold text-green-700">
                                                         {m.name?.charAt(0) ?? "?"}
                                                     </span>
