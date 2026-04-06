@@ -7,6 +7,8 @@ import { galleryApi } from "../services/galleryApi";
 import { boardApi } from "../services/boardApi";
 import { messagesApi } from "../services/messagesApi";
 import { settingsApi } from "../services/settingsApi";
+import { rulesApi } from "../services/rulesApi";
+import { notificationsApi } from "../services/notificationsApi";
 
 export default combineReducers({
 	[authSlice.name]: authSlice.reducer,
@@ -16,5 +18,7 @@ export default combineReducers({
 	[galleryApi.reducerPath]: galleryApi.reducer,
 	[boardApi.reducerPath]: boardApi.reducer,
 	[messagesApi.reducerPath]: messagesApi.reducer,
+	[notificationsApi.reducerPath]: notificationsApi.reducer,
 	[settingsApi.reducerPath]: settingsApi.reducer,
+	[rulesApi.reducerPath]: rulesApi.reducer,
 })

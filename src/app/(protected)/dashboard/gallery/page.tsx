@@ -6,24 +6,27 @@ import ConfirmDialog from "@/components/dashboard/ui/ConfirmDialog";
 import { FormField, SubmitButton } from "@/components/dashboard/ui/FormFields";
 import { AddButton } from "@/components/dashboard/ui/TableUtils";
 import {
+    GALLERY_SECTIONS,
     useGetGalleryQuery,
     useCreateGalleryMutation,
     useUpdateGalleryMutation,
     useDeleteGalleryMutation,
     type GalleryItem,
+    type GallerySection,
 } from "@/store/services/galleryApi";
 import { toast } from "sonner";
 
-const CATEGORIES = [
-    "All",
-    "Events",
-    "Meetings",
-    "Awards",
-    "Office",
-    "Community",
-];
+const CATEGORIES = ["All", ...GALLERY_SECTIONS] as const;
 
-const EMPTY = { title: "", category: "Events", date: "", alt: "" };
+type FilterCategory = (typeof CATEGORIES)[number];
+type GalleryFormState = {
+    title: string;
+    category: GallerySection;
+    date: string;
+    alt: string;
+};
+
+const EMPTY: GalleryFormState = { title: "", category: "Gallery", date: "", alt: "" };
 const inputCls =
     "w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 bg-white";
 
@@ -35,10 +38,10 @@ function getImageUrl(url: string | undefined): string {
 }
 
 export default function GalleryPage() {
-    const [filterCategory, setFilterCategory] = useState("All");
+    const [filterCategory, setFilterCategory] = useState<FilterCategory>("All");
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<GalleryItem | null>(null);
-    const [form, setForm] = useState(EMPTY);
+    const [form, setForm] = useState<GalleryFormState>(EMPTY);
     const [saving, setSaving] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<GalleryItem | null>(null);
     const [deleting, setDeleting] = useState(false);
@@ -60,7 +63,8 @@ export default function GalleryPage() {
 
     function openAdd() {
         setEditing(null);
-        setForm(EMPTY);
+        const defaultCategory = filterCategory !== "All" ? filterCategory : "Gallery";
+        setForm({ ...EMPTY, category: defaultCategory });
         setImageFile(null);
         setImagePreviewUrl("");
         setModalOpen(true);
@@ -177,7 +181,7 @@ export default function GalleryPage() {
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-sm text-gray-400">
-                    No images in this category.
+                    No images in this section.
                 </div>
             ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -300,13 +304,13 @@ export default function GalleryPage() {
                         />
                     </FormField>
                     <div className="grid grid-cols-2 gap-4">
-                        <FormField label="Category">
+                        <FormField label="Section">
                             <select
                                 value={form.category}
-                                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value as GallerySection }))}
                                 className={inputCls}
                             >
-                                {["Events", "Meetings", "Awards", "Office", "Community"].map((c) => (
+                                {GALLERY_SECTIONS.map((c) => (
                                     <option key={c} value={c}>{c}</option>
                                 ))}
                             </select>

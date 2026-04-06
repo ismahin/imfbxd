@@ -8,11 +8,16 @@ const defaultInitialState: ProfileResponse = {
 	email: null,
 	name: null,
 	phone: null,
+	nid_number: null,
+	date_of_birth: null,
 	user_id: null,
 	account_number: null,
 	beneficiary_ref_id: null,
 	nominee_name: null,
 	nominee_phone: null,
+	nominee_nid_number: null,
+	nominee_account_number: null,
+	nominee_date_of_birth: null,
 	current_address: null,
 	permanent_address: null,
 	nominee_address: null,
@@ -63,11 +68,16 @@ export const authSlice = createSlice({
 				state.email = action.payload.email;
 				state.name = action.payload.name;
 				state.phone = action.payload.phone;
+				state.nid_number = action.payload.nid_number;
+				state.date_of_birth = action.payload.date_of_birth;
 				state.user_id = action.payload.user_id;
 				state.account_number = action.payload.account_number;
 				state.beneficiary_ref_id = action.payload.beneficiary_ref_id;
 				state.nominee_name = action.payload.nominee_name;
 				state.nominee_phone = action.payload.nominee_phone;
+				state.nominee_nid_number = action.payload.nominee_nid_number;
+				state.nominee_account_number = action.payload.nominee_account_number;
+				state.nominee_date_of_birth = action.payload.nominee_date_of_birth;
 				state.current_address = action.payload.current_address;
 				state.permanent_address = action.payload.permanent_address;
 				state.nominee_address = action.payload.nominee_address;

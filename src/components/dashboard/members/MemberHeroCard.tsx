@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
-type ContactIconType = "id" | "phone" | "card" | "email";
+type ContactIconType = "id" | "phone" | "card" | "email" | "calendar";
 
 const contactIcons: Record<ContactIconType, React.ReactNode> = {
     id: (
@@ -66,6 +66,21 @@ const contactIcons: Record<ContactIconType, React.ReactNode> = {
             />
         </svg>
     ),
+    calendar: (
+        <svg
+            className="h-3 w-3"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+        </svg>
+    ),
 };
 
 function ContactItem({
@@ -104,6 +119,8 @@ export interface MemberHeroCardProps {
     profilePicture?: string;
     userId?: string | number;
     phone?: string | null;
+    nidNumber?: string | null;
+    dateOfBirth?: string | null;
     accountNumber?: string | null;
     email?: string | null;
 }
@@ -114,6 +131,8 @@ export function MemberHeroCard({
     profilePicture,
     userId,
     phone,
+    nidNumber,
+    dateOfBirth,
     accountNumber,
     email,
 }: MemberHeroCardProps) {
@@ -180,6 +199,16 @@ export function MemberHeroCard({
                             label="Mobile No."
                             value={phone}
                             icon="phone"
+                        />
+                        <ContactItem
+                            label="NID Number"
+                            value={nidNumber}
+                            icon="id"
+                        />
+                        <ContactItem
+                            label="Date of Birth"
+                            value={dateOfBirth}
+                            icon="calendar"
                         />
                         <ContactItem
                             label="Account No."

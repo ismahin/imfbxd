@@ -1,8 +1,14 @@
+"use client";
+
 import Image from "next/image";
+import { useMemo, useState } from "react";
+import Modal from "@/components/dashboard/ui/Modal";
+import { useGetRulesQuery } from "@/store/services/rulesApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RuleCardProps {
+	uuid?: string;
 	title: string;
 	body: string;
 	icon?: string;
@@ -40,6 +46,9 @@ const RULES: RuleCardProps[] = [
 // ─── RuleCard ─────────────────────────────────────────────────────────────────
 
 function RuleCard({ title, body }: RuleCardProps) {
+	const [open, setOpen] = useState(false);
+	const hasOverflow = useMemo(() => body.length > 220, [body]);
+
 	return (
 		<div className="flex h-full flex-col gap-4 rounded-2xl border-2 border-green-400 p-4 sm:gap-5 sm:p-6">
 			{/* Icon */}
@@ -60,9 +69,30 @@ function RuleCard({ title, body }: RuleCardProps) {
 			</p>
 
 			{/* Body */}
-			<p className="text-sm font-light leading-relaxed text-gray-800 sm:text-base lg:text-lg">
+			<p className="line-clamp-6 whitespace-pre-line text-sm font-light leading-relaxed text-gray-800 sm:text-base lg:text-lg">
 				{body}
 			</p>
+
+			{hasOverflow && (
+				<div className="mt-auto flex justify-end">
+					<button
+						type="button"
+						onClick={() => setOpen(true)}
+						className="inline-flex items-center gap-2 rounded-md border border-green-600 px-3 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-50"
+					>
+						Read more
+						<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+						</svg>
+					</button>
+				</div>
+			)}
+
+			<Modal open={open} onClose={() => setOpen(false)} title={title} maxWidth="max-w-2xl">
+				<p className="whitespace-pre-line text-base leading-relaxed text-gray-700 sm:text-lg">
+					{body}
+				</p>
+			</Modal>
 		</div>
 	);
 }
@@ -70,6 +100,10 @@ function RuleCard({ title, body }: RuleCardProps) {
 // ─── Rules Section ────────────────────────────────────────────────────────────
 
 export default function Rules() {
+	const { data } = useGetRulesQuery();
+	const liveRules = data?.results ?? [];
+	const rules = liveRules.length > 0 ? liveRules : RULES;
+
 	return (
 		<section className="mx-auto py-8 sm:py-12 lg:py-16">
 			<div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -80,8 +114,8 @@ export default function Rules() {
 
 				{/* Grid: 1 col → 2 col → 3 col */}
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8">
-					{RULES.map((rule) => (
-						<RuleCard key={rule.title} {...rule} />
+					{rules.map((rule) => (
+						<RuleCard key={rule.uuid ?? rule.title} title={rule.title} body={rule.body} />
 					))}
 				</div>
 			</div>

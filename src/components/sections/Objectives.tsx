@@ -1,21 +1,51 @@
+"use client";
+
 import Image from 'next/image'
+import { useMemo } from 'react';
+import { useGetGalleryQuery } from '@/store/services/galleryApi';
 
 const AimsObjectives = [
 	{
 		name: "জমি ক্রয় বিক্রয়",
 		src: "/assets/images/land.png",
+		alt: "জমি ক্রয় বিক্রয়",
 	},
 	{
 		name: "ফ্ল্যাট ক্রয় বিক্রয়",
 		src: "/assets/images/flat.png",
+		alt: "ফ্ল্যাট ক্রয় বিক্রয়",
 	},
 	{
 		name: "আবাসিক হোটেল ও কমার্শিয়াল ভবন নির্মাণ",
 		src: "/assets/images/hotel.png",
+		alt: "আবাসিক হোটেল ও কমার্শিয়াল ভবন নির্মাণ",
 	},
 ]
 
+function getImageUrl(url: string | undefined): string {
+	if (!url) return "";
+	const base = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : "";
+	if (!base) return url;
+	return url.startsWith("http") ? url : `${base.replace(/\/$/, "")}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 function Objectives() {
+	const { data } = useGetGalleryQuery({ category: "Objectives", limit: 20 });
+	const uploadedObjectives = data?.results ?? [];
+
+	const objectiveItems = useMemo(() => {
+		const fromAdmin = uploadedObjectives.slice(0, 3).map((item) => ({
+			name: item.title,
+			src: getImageUrl(item.url),
+			alt: item.alt || item.title,
+		}));
+
+		if (fromAdmin.length >= 3) return fromAdmin;
+
+		const remainingDefaults = AimsObjectives.slice(fromAdmin.length);
+		return [...fromAdmin, ...remainingDefaults];
+	}, [uploadedObjectives]);
+
 	return (
 		<section id='projects' className="mx-auto py-8">
 			<div className="container mx-auto flex flex-col space-y-6">
@@ -80,7 +110,7 @@ function Objectives() {
 										/>
 										<p className="text-center">জমি ক্রয় বিক্রয়</p>
 									</div> */}
-					{AimsObjectives.map((aims, i) => (
+					{objectiveItems.map((aims, i) => (
 						<div
 							key={i}
 							style={{
@@ -91,12 +121,12 @@ function Objectives() {
 						>
 							<Image
 								src={`${aims?.src}`}
-								alt="Land for sale"
+								alt={aims.alt}
 								width={360}
 								height={360}
-								className="h-auto w-full"
+								className="h-auto w-full rounded-xl"
 							/>
-							<p className="text-center">{aims.name}</p>
+							<p className="text-center text-xl font-semibold sm:text-2xl">{aims.name}</p>
 						</div>
 					))}
 				</div>

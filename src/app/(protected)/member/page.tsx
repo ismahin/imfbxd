@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useGetUserDetailsQuery } from "@/store/services/userApi";
 import { useGetDepositsByMemberQuery } from "@/store/services/depositsApi";
+import Modal from "@/components/dashboard/ui/Modal";
+import Pagination from "@/components/dashboard/ui/Pagination";
 import { ErrorState, NotFoundState } from "@/components/common";
 import {
     MemberHeroCard,
@@ -16,6 +19,21 @@ import {
 } from "@/components/dashboard/members";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
+import {
+    useGetMyNotificationsQuery,
+    useMarkAllNotificationsReadMutation,
+    useMarkNotificationReadMutation,
+    type NotificationType,
+} from "@/store/services/notificationsApi";
+import { toast } from "sonner";
+
+const notificationTypeBadge: Record<NotificationType, string> = {
+    Reminder: "bg-blue-100 text-blue-700",
+    General: "bg-gray-100 text-gray-600",
+    Alert: "bg-red-100 text-red-600",
+    Notice: "bg-orange-100 text-orange-700",
+};
+const NOTIFICATIONS_PAGE_SIZE = 5;
 
 function getProfilePictureUrl(path: string | null | undefined): string | undefined {
     if (!path) return undefined;
@@ -33,10 +51,23 @@ function formatTxDate(iso: string) {
     });
 }
 
+function formatNotificationDate(value: string | undefined) {
+    if (!value) return "Just now";
+    return new Date(value).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 export default function MemberProfilePage() {
     const { uuid } = useSelector((state: RootState) => state.auth) as {
         uuid: string | null;
     };
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [notificationsPage, setNotificationsPage] = useState(1);
 
     const {
         data: Member,
@@ -49,6 +80,17 @@ export default function MemberProfilePage() {
     const { data: deposits = [] } = useGetDepositsByMemberQuery(Member?.uuid ?? "", {
         skip: !Member?.uuid,
     });
+    const { data: notificationsData, isLoading: notificationsLoading } = useGetMyNotificationsQuery(
+        {
+            limit: NOTIFICATIONS_PAGE_SIZE,
+            offset: (notificationsPage - 1) * NOTIFICATIONS_PAGE_SIZE,
+            viewer_uuid: uuid ?? undefined,
+        },
+        { skip: !uuid, refetchOnMountOrArgChange: true },
+    );
+    const [markAllNotificationsRead, { isLoading: markingAllNotificationsRead }] =
+        useMarkAllNotificationsReadMutation();
+    const [markNotificationRead, { isLoading: markingNotificationRead }] = useMarkNotificationReadMutation();
 
     const transactions: Transaction[] = deposits.map((d) => ({
         id: d.uuid,
@@ -92,34 +134,91 @@ export default function MemberProfilePage() {
         );
 
     const profilePictureUrl = getProfilePictureUrl(Member.profile_picture);
+    const notifications = notificationsData?.results ?? [];
+    const unreadCount = notificationsData?.unread_count ?? 0;
+    const notificationsTotal = notificationsData?.count ?? 0;
+    const notificationsTotalPages = Math.max(
+        1,
+        Math.ceil(notificationsTotal / NOTIFICATIONS_PAGE_SIZE),
+    );
+
+    async function handleMarkRead(notificationUuid: string) {
+        try {
+            await markNotificationRead(notificationUuid).unwrap();
+        } catch (err) {
+            toast.error("Failed to mark notification as read.");
+        }
+    }
+
+    async function handleMarkAllRead() {
+        try {
+            const result = await markAllNotificationsRead().unwrap();
+            toast.success(result.detail);
+            if (notificationsPage !== 1) {
+                setNotificationsPage(1);
+            }
+        } catch (err) {
+            toast.error("Failed to mark all notifications as read.");
+        }
+    }
+
+    function openNotifications() {
+        setNotificationsPage(1);
+        setNotificationsOpen(true);
+    }
 
     return (
         <div className="mx-auto max-w-3xl space-y-6 pb-8">
-            <Link
-                href="/"
-                className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-green-600"
-            >
-                <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+            <div className="flex items-center justify-between gap-3">
+                <Link
+                    href="/"
+                    className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-green-600"
                 >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19l-7-7 7-7"
-                    />
-                </svg>
-                Back to Home
-            </Link>
+                    <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 19l-7-7 7-7"
+                        />
+                    </svg>
+                    Back to Home
+                </Link>
+
+                <button
+                    type="button"
+                    onClick={openNotifications}
+                    className="relative inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-700"
+                >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                        />
+                    </svg>
+                    Notifications
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-2 -right-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                    )}
+                </button>
+            </div>
 
             <MemberHeroCard
                 name={Member.name}
                 profilePicture={profilePictureUrl}
                 userId={Member.user_id}
                 phone={Member.phone}
+                nidNumber={Member.nid_number}
+                dateOfBirth={Member.date_of_birth}
                 accountNumber={Member.account_number}
                 email={Member.email}
             />
@@ -131,11 +230,14 @@ export default function MemberProfilePage() {
 
             <MemberNominee
                 nomineeName={Member.nominee_name}
+                nomineePhone={Member.nominee_phone}
+                nomineeNidNumber={Member.nominee_nid_number}
+                nomineeAccountNumber={Member.nominee_account_number}
+                nomineeDateOfBirth={Member.nominee_date_of_birth}
                 nomineeAddress={Member.nominee_address}
             />
 
             <MemberFinancials
-                investAmount={Member.invest_amount}
                 joiningDate={Member.joining_date}
                 totalDeposits={Member.total_deposits}
             />
@@ -197,6 +299,97 @@ export default function MemberProfilePage() {
                     </div>
                 </div>
             )}
+
+            <Modal
+                open={notificationsOpen}
+                onClose={() => setNotificationsOpen(false)}
+                title="Notifications"
+                maxWidth="max-w-2xl"
+            >
+                {notificationsLoading ? (
+                    <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+                        Loading notifications...
+                    </div>
+                ) : notifications.length === 0 ? (
+                    <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+                        No notifications received yet.
+                    </div>
+                ) : (
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                            <p className="text-sm text-gray-500">
+                                {unreadCount} unread notification{unreadCount === 1 ? "" : "s"}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleMarkAllRead}
+                                disabled={unreadCount === 0 || markingAllNotificationsRead}
+                                className="rounded-lg border border-green-200 bg-white px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {markingAllNotificationsRead ? "Marking..." : "Mark all as read"}
+                            </button>
+                        </div>
+                        <div className="space-y-3 p-4">
+                            {notifications.map((notification) => (
+                                <div
+                                    key={notification.uuid}
+                                    className={`rounded-xl border p-4 shadow-sm ${
+                                        notification.is_read
+                                            ? "border-gray-200 bg-white"
+                                            : "border-green-200 bg-green-50/60"
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="space-y-2">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <p className="text-sm font-semibold text-gray-800">
+                                                    {notification.title}
+                                                </p>
+                                                <span
+                                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${notificationTypeBadge[notification.type]}`}
+                                                >
+                                                    {notification.type}
+                                                </span>
+                                                {!notification.is_read && (
+                                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                                                        New
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="whitespace-pre-wrap text-sm text-gray-600">
+                                                {notification.message}
+                                            </p>
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400">
+                                                <span>{notification.recipients}</span>
+                                                <span>{formatNotificationDate(notification.created_at)}</span>
+                                            </div>
+                                        </div>
+                                        {!notification.is_read && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMarkRead(notification.uuid)}
+                                                disabled={markingNotificationRead}
+                                                className="shrink-0 rounded-lg border border-green-200 bg-white px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-60"
+                                            >
+                                                Mark as read
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {notificationsTotal > NOTIFICATIONS_PAGE_SIZE && (
+                            <Pagination
+                                page={notificationsPage}
+                                totalPages={notificationsTotalPages}
+                                onPageChange={setNotificationsPage}
+                                totalItems={notificationsTotal}
+                                pageSize={NOTIFICATIONS_PAGE_SIZE}
+                            />
+                        )}
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 }

@@ -52,7 +52,7 @@ export default function SettingsPage() {
   const [updateSettings, { isLoading: updateLoading }] = useUpdateSettingsMutation();
 
   // ── Organization (from API) ───────────────────────────────────
-  const [org, setOrg] = useState({ name: "", regNo: "", email: "", phone: "", address: "", website: "" });
+  const [org, setOrg] = useState({ name: "", regNo: "", email: "", phone: "", address: "", website: "", whyImfTitle: "", whyImfSubtitle: "", whyImfText: "" });
   const [orgSaved, setOrgSaved] = useState(false);
   useEffect(() => {
     if (settings) {
@@ -63,6 +63,9 @@ export default function SettingsPage() {
         phone: settings.contact_phone ?? "",
         address: settings.address ?? "",
         website: settings.website ?? "",
+        whyImfTitle: settings.why_imf_title ?? "",
+        whyImfSubtitle: settings.why_imf_subtitle ?? "",
+        whyImfText: settings.why_imf_text ?? "",
       });
     }
   }, [settings]);
@@ -113,9 +116,18 @@ export default function SettingsPage() {
   }, [auth?.email]);
 
   // ── Appearance ────────────────────────────────────────────────
-  const [appear, setAppear] = useState({ primaryColor: "#22c55e", dateFormat: "DD/MM/YYYY", currency: "BDT", language: "en" });
+  const [appear, setAppear] = useState({ primaryColor: "#22c55e", dateFormat: "DD/MM/YYYY", currency: "BDT", language: "en", heroSliderInterval: "" });
   const [appearSaving, setAppearSaving] = useState(false);
   const [appearSaved, setAppearSaved] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setAppear((p) => ({
+        ...p,
+        heroSliderInterval: settings.hero_slider_interval != null ? String(settings.hero_slider_interval) : "",
+      }));
+    }
+  }, [settings]);
 
   async function saveOrg(e: React.FormEvent) {
     e.preventDefault();
@@ -128,6 +140,9 @@ export default function SettingsPage() {
         contact_phone: org.phone,
         address: org.address,
         website: org.website,
+        why_imf_title: org.whyImfTitle,
+        why_imf_subtitle: org.whyImfSubtitle,
+        why_imf_text: org.whyImfText,
       }).unwrap();
       setOrgSaved(true);
       toast.success("Organization settings saved.");
@@ -220,9 +235,15 @@ export default function SettingsPage() {
     setAppearSaving(true);
     setAppearSaved(false);
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      const parsed = appear.heroSliderInterval.trim() ? Number(appear.heroSliderInterval.trim()) : null;
+      await updateSettings({
+        hero_slider_interval: parsed != null && Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : null,
+      }).unwrap();
       setAppearSaved(true);
+      toast.success("Appearance settings saved.");
       setTimeout(() => setAppearSaved(false), 4000);
+    } catch (err: unknown) {
+      toast.error(err && typeof err === "object" && "data" in err && (err as { data?: { detail?: string } }).data?.detail ? String((err as { data: { detail: string } }).data.detail) : "Failed to save.");
     } finally {
       setAppearSaving(false);
     }
@@ -267,6 +288,39 @@ export default function SettingsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
               <textarea rows={2} value={org.address} onChange={(e) => setOrg((p) => ({ ...p, address: e.target.value }))} placeholder="Full address" className={`${inputCls} resize-none`} />
+            </div>
+            <div className="border-t border-gray-100 pt-4 space-y-4">
+              <h3 className="text-sm font-semibold text-gray-700">Why IMF-BD Section</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Section Title</label>
+                <input
+                  type="text"
+                  value={org.whyImfTitle}
+                  onChange={(e) => setOrg((p) => ({ ...p, whyImfTitle: e.target.value }))}
+                  placeholder="Why IMF-BD?"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Subtitle</label>
+                <input
+                  type="text"
+                  value={org.whyImfSubtitle}
+                  onChange={(e) => setOrg((p) => ({ ...p, whyImfSubtitle: e.target.value }))}
+                  placeholder="IMF-BD কেন?"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+                <textarea
+                  rows={6}
+                  value={org.whyImfText}
+                  onChange={(e) => setOrg((p) => ({ ...p, whyImfText: e.target.value }))}
+                  placeholder="Write full Why IMF-BD text..."
+                  className={`${inputCls} resize-y`}
+                />
+              </div>
             </div>
             <SaveRow saving={updateLoading} saved={orgSaved} />
           </form>
@@ -420,6 +474,19 @@ export default function SettingsPage() {
                 <select value={appear.language} onChange={(e) => setAppear((p) => ({ ...p, language: e.target.value }))} className={inputCls}>
                   <option value="en">English</option><option value="bn">বাংলা (Bengali)</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Hero Slider Interval (seconds)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={appear.heroSliderInterval}
+                  onChange={(e) => setAppear((p) => ({ ...p, heroSliderInterval: e.target.value }))}
+                  placeholder="Optional, e.g. 5"
+                  className={inputCls}
+                />
+                <p className="mt-1 text-xs text-gray-500">Leave empty to use the default interval.</p>
               </div>
             </div>
             <SaveRow saving={appearSaving} saved={appearSaved} />

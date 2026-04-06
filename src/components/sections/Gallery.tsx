@@ -11,10 +11,11 @@ function getImageUrl(url: string | undefined): string {
 }
 
 export default function Gallery() {
-	const { data, isLoading } = useGetGalleryQuery({ limit: 50 });
+	const { data, isLoading } = useGetGalleryQuery({ category: "Gallery", limit: 50 });
 
 	const images =
-		data?.results?.map((item) => ({
+		data?.results
+			.map((item) => ({
 			src: getImageUrl(item.url) || "/assets/images/question.png",
 			alt: item.alt || item.title,
 		})) ?? [];

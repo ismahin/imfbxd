@@ -103,6 +103,8 @@ export default function MemberProfilePage() {
                 }
                 userId={Member.user_id}
                 phone={Member.phone}
+                nidNumber={Member.nid_number}
+                dateOfBirth={Member.date_of_birth}
                 accountNumber={Member.account_number}
                 email={Member.email}
             />
@@ -114,11 +116,14 @@ export default function MemberProfilePage() {
 
             <MemberNominee
                 nomineeName={Member.nominee_name}
+                nomineePhone={Member.nominee_phone}
+                nomineeNidNumber={Member.nominee_nid_number}
+                nomineeAccountNumber={Member.nominee_account_number}
+                nomineeDateOfBirth={Member.nominee_date_of_birth}
                 nomineeAddress={Member.nominee_address}
             />
 
             <MemberFinancials
-                investAmount={Member.invest_amount}
                 joiningDate={Member.joining_date}
                 totalDeposits={Member.total_deposits}
             />

@@ -23,6 +23,10 @@ export interface SiteSettings {
 	logo_alt_text: string;
 	show_logo_text: boolean;
 	logo_text: string;
+	hero_slider_interval: number | null;
+	why_imf_title: string;
+	why_imf_subtitle: string;
+	why_imf_text: string;
 	updated_at?: string | null;
 }
 

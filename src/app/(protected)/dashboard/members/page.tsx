@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Modal from "@/components/dashboard/ui/Modal";
 import ConfirmDialog from "@/components/dashboard/ui/ConfirmDialog";
@@ -17,6 +17,7 @@ import {
 } from "@/components/dashboard/ui/TableUtils";
 import {
     useCreateUserMutation,
+    useDeleteUserMutation,
     useGetUsersQuery,
     useUpdateUserMutation,
     userApi,
@@ -34,9 +35,14 @@ interface MemberForm {
     password?: string;
     confirm_password?: string;
     phone?: string;
+    nid_number?: string;
+    date_of_birth?: string;
     account_number?: string;
     nominee_name?: string;
     nominee_phone?: string;
+    nominee_nid_number?: string;
+    nominee_account_number?: string;
+    nominee_date_of_birth?: string;
     permanent_address?: string;
     current_address?: string;
     nominee_address?: string;
@@ -51,9 +57,14 @@ const EMPTY_FORM = {
     password: "",
     confirm_password: "",
     phone: "",
+    nid_number: "",
+    date_of_birth: "",
     account_number: "",
     nominee_name: "",
     nominee_phone: "",
+    nominee_nid_number: "",
+    nominee_account_number: "",
+    nominee_date_of_birth: "",
     permanent_address: "",
     current_address: "",
     nominee_address: "",
@@ -86,6 +97,9 @@ export default function MembersPage() {
     const [saving, setSaving] = useState(false);
     const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
     const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+    const [beneficiarySearch, setBeneficiarySearch] = useState("");
+    const [beneficiaryDropdownOpen, setBeneficiaryDropdownOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<{ uuid: string; name?: string } | null>(null);
 
     const dispatch = useDispatch();
     const token = useSelector((state: RootState) => state.auth.accessToken);
@@ -99,13 +113,13 @@ export default function MembersPage() {
         return base ? `${base}${p}` : null;
     }
 
-    // const [deleteTarget, setDeleteTarget] = useState<Member | undefined>(undefined);
     const [deleting, setDeleting] = useState(false);
 
     // All User Related API Calling
-    const { data: { results: members } = { results: [] } } = useGetUsersQuery();
+    const { data: { results: members } = { results: [] } } = useGetUsersQuery({ limit: 500 });
     const [createUser] = useCreateUserMutation();
     const [updateUser] = useUpdateUserMutation();
+    const [deleteUser] = useDeleteUserMutation();
 
     // console.log(members);
     // console.log("error", error);
@@ -132,6 +146,58 @@ export default function MembersPage() {
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+    function getBeneficiaryLabel(member: {
+        name?: string;
+        user_id?: string;
+        phone?: string;
+    }) {
+        const name = member.name?.trim() || "Unnamed member";
+        const id = member.user_id?.trim() || "No ID";
+        const phone = member.phone?.trim();
+        return phone ? `${name} (${id}) • ${phone}` : `${name} (${id})`;
+    }
+
+    const beneficiaryMembers = useMemo(
+        () =>
+            members
+                .filter((m) => m.user_id && m.uuid !== editing?.uuid)
+                .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
+        [members, editing?.uuid],
+    );
+
+    const beneficiaryOptions = useMemo(() => {
+        const query = beneficiarySearch.trim().toLowerCase();
+        const matches = beneficiaryMembers.filter((member) => {
+            if (!query) return true;
+            const haystack = [
+                member.name ?? "",
+                member.user_id ?? "",
+                member.phone ?? "",
+                member.email ?? "",
+            ]
+                .join(" ")
+                .toLowerCase();
+            return haystack.includes(query);
+        });
+        return matches.slice(0, 8);
+    }, [beneficiaryMembers, beneficiarySearch]);
+
+    const selectedBeneficiary = useMemo(
+        () => beneficiaryMembers.find((member) => member.user_id === form.beneficiary_ref_id),
+        [beneficiaryMembers, form.beneficiary_ref_id],
+    );
+
+    useEffect(() => {
+        if (!modalOpen) return;
+        if (!form.beneficiary_ref_id) {
+            if (!beneficiarySearch) return;
+            return;
+        }
+        const match = beneficiaryMembers.find((member) => member.user_id === form.beneficiary_ref_id);
+        const nextLabel = match ? getBeneficiaryLabel(match) : form.beneficiary_ref_id;
+        setBeneficiarySearch((current) => (current ? current : nextLabel));
+    }, [modalOpen, form.beneficiary_ref_id, beneficiaryMembers, beneficiarySearch]);
+
     // ── Modal helpers ────────────────────────────────────────────
     function openAdd() {
         setEditing(undefined);
@@ -139,10 +205,32 @@ export default function MembersPage() {
         setPwError("");
         setProfilePictureFile(null);
         setProfilePicturePreview(null);
+        setBeneficiarySearch("");
+        setBeneficiaryDropdownOpen(false);
         setModalOpen(true);
     }
 
-    function openEdit(m: { uuid: string; name?: string; email?: string; phone?: string; account_number?: string; nominee_name?: string; nominee_phone?: string; permanent_address?: string; current_address?: string; nominee_address?: string; beneficiary_ref_id?: string | null; user_type?: string; joining_date?: string; profile_picture?: string }) {
+    function openEdit(m: {
+        uuid: string;
+        name?: string;
+        email?: string;
+        phone?: string;
+        nid_number?: string;
+        date_of_birth?: string;
+        account_number?: string;
+        nominee_name?: string;
+        nominee_phone?: string;
+        nominee_nid_number?: string;
+        nominee_account_number?: string;
+        nominee_date_of_birth?: string;
+        permanent_address?: string;
+        current_address?: string;
+        nominee_address?: string;
+        beneficiary_ref_id?: string | null;
+        user_type?: string;
+        joining_date?: string;
+        profile_picture?: string;
+    }) {
         setEditing(m);
         setForm({
             name: m.name ?? "",
@@ -150,9 +238,14 @@ export default function MembersPage() {
             password: "",
             confirm_password: "",
             phone: m.phone ?? "",
+            nid_number: m.nid_number ?? "",
+            date_of_birth: m.date_of_birth ?? "",
             account_number: m.account_number ?? "",
             nominee_name: m.nominee_name ?? "",
             nominee_phone: m.nominee_phone ?? "",
+            nominee_nid_number: m.nominee_nid_number ?? "",
+            nominee_account_number: m.nominee_account_number ?? "",
+            nominee_date_of_birth: m.nominee_date_of_birth ?? "",
             permanent_address: m.permanent_address ?? "",
             current_address: m.current_address ?? "",
             nominee_address: m.nominee_address ?? "",
@@ -163,6 +256,11 @@ export default function MembersPage() {
         setPwError("");
         setProfilePictureFile(null);
         setProfilePicturePreview(profileImageUrl(m.profile_picture) || null);
+        const selectedMember = members.find((member) => member.user_id === (m.beneficiary_ref_id ?? ""));
+        setBeneficiarySearch(
+            selectedMember ? getBeneficiaryLabel(selectedMember) : (m.beneficiary_ref_id ?? ""),
+        );
+        setBeneficiaryDropdownOpen(false);
         setModalOpen(true);
     }
 
@@ -181,6 +279,11 @@ export default function MembersPage() {
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setPwError("");
+
+        if (!(form.beneficiary_ref_id ?? "").trim()) {
+            toast.error("Please select a beneficiary reference member.");
+            return;
+        }
 
         if (!editing) {
             if ((form.password ?? "").length < 8) {
@@ -217,9 +320,14 @@ export default function MembersPage() {
                 fd.append("email", form.email ?? "");
                 if (form.password) fd.append("password", form.password);
                 fd.append("phone", form.phone ?? "");
+                fd.append("nid_number", form.nid_number ?? "");
+                fd.append("date_of_birth", form.date_of_birth ?? "");
                 fd.append("account_number", form.account_number ?? "");
                 fd.append("nominee_name", form.nominee_name ?? "");
                 fd.append("nominee_phone", form.nominee_phone ?? "");
+                fd.append("nominee_nid_number", form.nominee_nid_number ?? "");
+                fd.append("nominee_account_number", form.nominee_account_number ?? "");
+                fd.append("nominee_date_of_birth", form.nominee_date_of_birth ?? "");
                 fd.append("permanent_address", form.permanent_address ?? "");
                 fd.append("current_address", form.current_address ?? "");
                 fd.append("nominee_address", form.nominee_address ?? "");
@@ -277,18 +385,38 @@ export default function MembersPage() {
 
     // ── Delete ───────────────────────────────────────────────────
     async function handleDelete() {
-        // if (!deleteTarget) return;
+        if (!deleteTarget) return;
         setDeleting(true);
         try {
-            // await apiDelete(deleteTarget.id);
-            // setMembers((p) => p.filter((m) => m.id !== deleteTarget.id));
-            // setDeleteTarget(undefined);
+            await deleteUser(deleteTarget.uuid).unwrap();
+            toast.success("Member deleted.", {
+                description: deleteTarget.name
+                    ? `${deleteTarget.name} has been removed successfully.`
+                    : "The member has been removed successfully.",
+            });
+            setDeleteTarget(null);
+        } catch (err) {
+            const msg =
+                err && typeof err === "object" && "data" in err && typeof (err as { data?: { detail?: string } }).data?.detail === "string"
+                    ? (err as { data: { detail: string } }).data.detail
+                    : "Failed to delete member.";
+            toast.error(msg);
         } finally {
             setDeleting(false);
         }
     }
 
     // ── Generic field updater ────────────────────────────────────
+    function handleBeneficiarySelect(member: {
+        user_id?: string;
+        name?: string;
+        phone?: string;
+    }) {
+        setForm((prev) => ({ ...prev, beneficiary_ref_id: member.user_id ?? "" }));
+        setBeneficiarySearch(getBeneficiaryLabel(member));
+        setBeneficiaryDropdownOpen(false);
+    }
+
     function f(key: keyof MemberForm) {
         return (
             e: React.ChangeEvent<
@@ -439,6 +567,11 @@ export default function MembersPage() {
                                             </Link>
                                             <ActionMenu
                                                 onEdit={() => m.uuid && openEdit({ ...m, uuid: m.uuid })}
+                                                onDelete={() => {
+                                                    if (m.uuid) {
+                                                        setDeleteTarget({ uuid: m.uuid, name: m.name });
+                                                    }
+                                                }}
                                                 onDeactivate={async () => {
                                                     try {
                                                         await updateUser({
@@ -547,7 +680,7 @@ export default function MembersPage() {
                         </FormField>
                     </div>
 
-                    {/* Mobile No. + Account No. */}
+                    {/* Mobile No. + NID No. */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormField label="Mobile No." required>
                             <input
@@ -556,6 +689,26 @@ export default function MembersPage() {
                                 value={form.phone}
                                 onChange={f("phone")}
                                 placeholder="+880 17XX-XXXXXX"
+                                className={iCls}
+                            />
+                        </FormField>
+                        <FormField label="Member NID Number">
+                            <input
+                                value={form.nid_number}
+                                onChange={f("nid_number")}
+                                placeholder="e.g. 1234567890123"
+                                className={iCls}
+                            />
+                        </FormField>
+                    </div>
+
+                    {/* Date of Birth + Account No. */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField label="Date of Birth">
+                            <input
+                                type="date"
+                                value={form.date_of_birth}
+                                onChange={f("date_of_birth")}
                                 className={iCls}
                             />
                         </FormField>
@@ -570,7 +723,7 @@ export default function MembersPage() {
                         </FormField>
                     </div>
 
-                    {/* Nominee Name (half width) */}
+                    {/* Nominee Name + Phone */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormField label="Nominee Name" required>
                             <input
@@ -578,6 +731,47 @@ export default function MembersPage() {
                                 value={form.nominee_name}
                                 onChange={f("nominee_name")}
                                 placeholder="Nominee full name"
+                                className={iCls}
+                            />
+                        </FormField>
+                        <FormField label="Nominee Phone">
+                            <input
+                                type="tel"
+                                value={form.nominee_phone}
+                                onChange={f("nominee_phone")}
+                                placeholder="+880 17XX-XXXXXX"
+                                className={iCls}
+                            />
+                        </FormField>
+                    </div>
+
+                    {/* Nominee NID + Account */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField label="Nominee NID Number">
+                            <input
+                                value={form.nominee_nid_number}
+                                onChange={f("nominee_nid_number")}
+                                placeholder="e.g. 1234567890123"
+                                className={iCls}
+                            />
+                        </FormField>
+                        <FormField label="Nominee Account Number">
+                            <input
+                                value={form.nominee_account_number}
+                                onChange={f("nominee_account_number")}
+                                placeholder="Nominee account number"
+                                className={iCls}
+                            />
+                        </FormField>
+                    </div>
+
+                    {/* Nominee Date of Birth */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField label="Nominee Date of Birth">
+                            <input
+                                type="date"
+                                value={form.nominee_date_of_birth}
+                                onChange={f("nominee_date_of_birth")}
                                 className={iCls}
                             />
                         </FormField>
@@ -634,13 +828,63 @@ export default function MembersPage() {
                             label="Beneficiary Ref. ID NO. (if exists)"
                             required
                         >
-                            <input
-                                required
-                                value={form.beneficiary_ref_id}
-                                onChange={f("beneficiary_ref_id")}
-                                placeholder="e.g. IMF0802"
-                                className={iCls}
-                            />
+                            <div className="relative">
+                                <input
+                                    required
+                                    value={beneficiarySearch}
+                                    onChange={(e) => {
+                                        setBeneficiarySearch(e.target.value);
+                                        setBeneficiaryDropdownOpen(true);
+                                        setForm((prev) => ({ ...prev, beneficiary_ref_id: "" }));
+                                    }}
+                                    onFocus={() => setBeneficiaryDropdownOpen(true)}
+                                    onBlur={() => {
+                                        window.setTimeout(() => {
+                                            setBeneficiaryDropdownOpen(false);
+                                        }, 120);
+                                    }}
+                                    placeholder="Search by member ID, name, phone or email"
+                                    className={iCls}
+                                />
+                                {beneficiaryDropdownOpen && (
+                                    <div className="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
+                                        {beneficiaryOptions.length === 0 ? (
+                                            <p className="px-3 py-2 text-sm text-gray-400">
+                                                No matching members found.
+                                            </p>
+                                        ) : (
+                                            beneficiaryOptions.map((member) => (
+                                                <button
+                                                    key={member.uuid ?? member.user_id}
+                                                    type="button"
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        handleBeneficiarySelect(member);
+                                                    }}
+                                                    className="flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors hover:bg-green-50"
+                                                >
+                                                    <span className="text-sm font-medium text-gray-800">
+                                                        {member.name}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {member.user_id}
+                                                        {member.phone ? ` • ${member.phone}` : ""}
+                                                        {member.email ? ` • ${member.email}` : ""}
+                                                    </span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-xs text-gray-400">
+                                Select an existing member from the searchable list.
+                            </p>
+                            {selectedBeneficiary && (
+                                <p className="text-xs font-medium text-green-700">
+                                    Selected: {selectedBeneficiary.name} ({selectedBeneficiary.user_id})
+                                </p>
+                            )}
                         </FormField>
                     </div>
 
@@ -725,14 +969,14 @@ export default function MembersPage() {
             </Modal>
 
             {/* ── Delete Confirm ───────────────────────────────────────── */}
-            {/* <ConfirmDialog
+            <ConfirmDialog
                 open={!!deleteTarget}
-                onClose={() => setDeleteTarget(undefined)}
+                onClose={() => setDeleteTarget(null)}
                 onConfirm={handleDelete}
                 loading={deleting}
                 title="Delete Member"
-                message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-            /> */}
+                message={`Are you sure you want to delete "${deleteTarget?.name ?? "this member"}"? This action cannot be undone.`}
+            />
         </div>
     );
 }

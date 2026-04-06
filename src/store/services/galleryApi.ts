@@ -1,11 +1,14 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQuery } from "../baseQuery";
 
+export type GallerySection = "Hero" | "Objectives" | "Gallery";
+export const GALLERY_SECTIONS: GallerySection[] = ["Hero", "Objectives", "Gallery"];
+
 export interface GalleryItem {
 	id: string;
 	uuid: string;
 	title: string;
-	category: string;
+	category: GallerySection;
 	date?: string;
 	url: string;
 	alt: string;
@@ -21,7 +24,7 @@ export interface GalleryListResponse {
 
 export interface CreateGalleryRequest {
 	title: string;
-	category?: string;
+	category?: GallerySection;
 	date?: string;
 	alt?: string;
 	image?: File;
@@ -37,7 +40,7 @@ export const galleryApi = createApi({
 	endpoints: (builder) => ({
 		getGallery: builder.query<
 			GalleryListResponse,
-			{ limit?: number; offset?: number; category?: string } | void
+			{ limit?: number; offset?: number; category?: GallerySection | "All" } | void
 		>({
 			query: (params) => ({
 				url: "api/web/v1/gallery/list/",

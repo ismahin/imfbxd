@@ -20,6 +20,8 @@ import { galleryApi } from "./services/galleryApi";
 import { boardApi } from "./services/boardApi";
 import { messagesApi } from "./services/messagesApi";
 import { settingsApi } from "./services/settingsApi";
+import { rulesApi } from "./services/rulesApi";
+import { notificationsApi } from "./services/notificationsApi";
 import storage from "./storage";
 
 const persistConfig = {
@@ -39,7 +41,7 @@ const store = configureStore({
 		serializableCheck: {
 			ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
 		},
-	}).concat(authApi.middleware, userApi.middleware, depositsApi.middleware, galleryApi.middleware, boardApi.middleware, messagesApi.middleware, settingsApi.middleware),
+	}).concat(authApi.middleware, userApi.middleware, depositsApi.middleware, galleryApi.middleware, boardApi.middleware, messagesApi.middleware, notificationsApi.middleware, settingsApi.middleware, rulesApi.middleware),
 });
 
 export const persistor = persistStore(store);

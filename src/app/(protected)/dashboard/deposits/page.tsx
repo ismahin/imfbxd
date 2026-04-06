@@ -18,11 +18,19 @@ import { toast } from "sonner";
 
 type MainTab = "list" | "recent" | "report";
 type ReportPeriod = "Daily" | "Monthly" | "Yearly";
+type MemberDepositSummary = {
+    member_uuid: string;
+    member_id: string;
+    member_name: string;
+    phone: string;
+    email: string;
+    total: number;
+};
 
-function aggregateByMember(entries: Deposit[]) {
+function aggregateByMember(entries: Deposit[]): MemberDepositSummary[] {
     const map = new Map<
         string,
-        { member_id: string; member_name: string; phone: string; email: string; total: number }
+        MemberDepositSummary
     >();
     entries.forEach((e) => {
         const key = e.member_uuid;
@@ -31,6 +39,7 @@ function aggregateByMember(entries: Deposit[]) {
             existing.total += e.amount;
         } else {
             map.set(key, {
+                member_uuid: e.member_uuid,
                 member_id: e.member_id ?? e.member_uuid,
                 member_name: e.member_name ?? "",
                 phone: e.phone ?? "",
@@ -81,12 +90,20 @@ function formatDate(iso: string) {
     });
 }
 
+function getImageUrl(url: string | undefined): string {
+    if (!url) return "";
+    const base = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : "";
+    if (!base) return url;
+    return url.startsWith("http") ? url : `${base.replace(/\/$/, "")}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 const iCls =
     "w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white " +
     "focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 " +
     "placeholder:text-gray-400 transition-colors";
 
 const PAGE_SIZE = 8;
+const TRANSACTION_PAGE_SIZE = 10;
 const CHANNELS = ["Cash", "Bank Transfer", "Mobile Banking", "Cheque"];
 
 export default function DepositsPage() {
@@ -104,11 +121,31 @@ export default function DepositsPage() {
         amount: "",
     });
     const [entryError, setEntryError] = useState("");
+    const [proofImageFile, setProofImageFile] = useState<File | null>(null);
+    const [proofImagePreview, setProofImagePreview] = useState("");
 
     const [deleteTarget, setDeleteTarget] = useState<Deposit | null>(null);
+    const [viewTarget, setViewTarget] = useState<MemberDepositSummary | null>(null);
+    const [transactionsPage, setTransactionsPage] = useState(1);
+    const [proofViewTarget, setProofViewTarget] = useState<Deposit | null>(null);
 
     const { data: depositsData, isLoading: depositsLoading } = useGetDepositsQuery();
     const { data: membersData } = useGetUsersQuery();
+    const {
+        data: memberTransactionsData,
+        isLoading: memberTransactionsLoading,
+    } = useGetDepositsQuery(
+        viewTarget?.member_uuid
+            ? {
+                  member_uuid: viewTarget.member_uuid,
+                  limit: TRANSACTION_PAGE_SIZE,
+                  offset: (transactionsPage - 1) * TRANSACTION_PAGE_SIZE,
+              }
+            : undefined,
+        {
+        skip: !viewTarget?.member_uuid,
+        },
+    );
     const [createDeposit, { isLoading: creating }] = useCreateDepositMutation();
     const [updateDeposit, { isLoading: updating }] = useUpdateDepositMutation();
     const [deleteDeposit, { isLoading: deleting }] = useDeleteDepositMutation();
@@ -155,6 +192,9 @@ export default function DepositsPage() {
     const recentRows = recentFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
     const reportPages = Math.max(1, Math.ceil(reportRows.length / PAGE_SIZE));
     const reportRowsPaginated = reportRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    const transactionRows = memberTransactionsData?.results ?? [];
+    const transactionTotal = memberTransactionsData?.count ?? 0;
+    const transactionPages = Math.max(1, Math.ceil(transactionTotal / TRANSACTION_PAGE_SIZE));
 
     function switchTab(tab: MainTab) {
         setActiveTab(tab);
@@ -171,6 +211,8 @@ export default function DepositsPage() {
             amount: "",
         });
         setEntryError("");
+        setProofImageFile(null);
+        setProofImagePreview("");
         setEntryOpen(true);
     }
 
@@ -183,7 +225,43 @@ export default function DepositsPage() {
             amount: String(e.amount),
         });
         setEntryError("");
+        setProofImageFile(null);
+        setProofImagePreview(getImageUrl(e.proof_image));
         setEntryOpen(true);
+    }
+
+    function openTransactions(member: MemberDepositSummary) {
+        setViewTarget(member);
+        setTransactionsPage(1);
+    }
+
+    function openProofImage(deposit: Deposit) {
+        if (!deposit.proof_image) {
+            toast.info("No transaction proof image was uploaded for this deposit.");
+            return;
+        }
+        setProofViewTarget(deposit);
+    }
+
+    function handleProofImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) {
+            setProofImageFile(null);
+            setProofImagePreview(editTarget?.proof_image ? getImageUrl(editTarget.proof_image) : "");
+            return;
+        }
+        if (!/^image\/(jpeg|png|gif|webp)$/i.test(file.type)) {
+            toast.error("Please choose a JPEG, PNG, GIF, or WebP image.");
+            e.target.value = "";
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("Proof image must be 5MB or smaller.");
+            e.target.value = "";
+            return;
+        }
+        setProofImageFile(file);
+        setProofImagePreview(URL.createObjectURL(file));
     }
 
     async function handleEntrySubmit(ev: React.FormEvent) {
@@ -207,6 +285,7 @@ export default function DepositsPage() {
                         amount: amt,
                         channel: entryForm.channel,
                         deposit_date: entryForm.date,
+                        proof_image: proofImageFile ?? undefined,
                     },
                 }).unwrap();
                 toast.success("Deposit updated");
@@ -217,6 +296,7 @@ export default function DepositsPage() {
                     amount: amt,
                     channel: entryForm.channel,
                     deposit_date: entryForm.date,
+                    proof_image: proofImageFile ?? undefined,
                 }).unwrap();
                 toast.success("Deposit recorded");
                 setEntryOpen(false);
@@ -308,12 +388,13 @@ export default function DepositsPage() {
                                     <th className={`${thCls} w-2/5`}>Member</th>
                                     <th className={`${thCls} hidden w-2/5 sm:table-cell`}>Contact</th>
                                     <th className={`${thCls} w-1/5 text-right`}>Total Deposit</th>
+                                    <th className={`${thCls} w-1/6 text-right`}>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {listRows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={3} className="py-12 text-center text-sm text-gray-400">
+                                        <td colSpan={4} className="py-12 text-center text-sm text-gray-400">
                                             No members with deposits yet.
                                         </td>
                                     </tr>
@@ -332,6 +413,34 @@ export default function DepositsPage() {
                                                 <span className="font-semibold text-gray-900">
                                                     BDT {row.total.toLocaleString()}
                                                 </span>
+                                            </td>
+                                            <td className={`${tdCls} text-right`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openTransactions(row)}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100"
+                                                >
+                                                    <svg
+                                                        className="h-3.5 w-3.5"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                                        />
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                        />
+                                                    </svg>
+                                                    View
+                                                </button>
                                             </td>
                                         </tr>
                                     ))
@@ -385,6 +494,21 @@ export default function DepositsPage() {
                                             </td>
                                             <td className={`${tdCls} text-right`}>
                                                 <div className="flex items-center justify-end gap-1">
+                                                    <button
+                                                        onClick={() => openProofImage(e)}
+                                                        disabled={!e.proof_image}
+                                                        className={`rounded-lg p-1.5 transition-colors ${
+                                                            e.proof_image
+                                                                ? "text-gray-400 hover:bg-green-50 hover:text-green-600"
+                                                                : "cursor-not-allowed text-gray-300"
+                                                        }`}
+                                                        title={e.proof_image ? "View transaction proof" : "No proof image"}
+                                                    >
+                                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
                                                     <button
                                                         onClick={() => openEdit(e)}
                                                         className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
@@ -533,6 +657,28 @@ export default function DepositsPage() {
                             className={iCls}
                         />
                     </FormField>
+                    <FormField label="Transaction Proof Image">
+                        <div className="space-y-3">
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                onChange={handleProofImageChange}
+                                className="text-sm text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-green-700 hover:file:bg-green-100"
+                            />
+                            <p className="text-xs text-gray-400">
+                                Optional. JPEG, PNG, GIF or WebP up to 5MB.
+                            </p>
+                            {proofImagePreview && (
+                                <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                                    <img
+                                        src={proofImagePreview}
+                                        alt="Transaction proof preview"
+                                        className="h-40 w-full object-cover"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </FormField>
                     {entryError && (
                         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-500">
                             {entryError}
@@ -546,6 +692,126 @@ export default function DepositsPage() {
                         {saving ? "Saving…" : "Submit"}
                     </button>
                 </form>
+            </Modal>
+
+            <Modal
+                open={!!proofViewTarget}
+                onClose={() => setProofViewTarget(null)}
+                title="Transaction Proof"
+                maxWidth="max-w-2xl"
+            >
+                {proofViewTarget && (
+                    <div className="space-y-4">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                            <p className="font-semibold text-gray-800">{proofViewTarget.member_name}</p>
+                            <p className="mt-1">
+                                {proofViewTarget.member_id ? `${proofViewTarget.member_id} | ` : ""}
+                                {formatDate(proofViewTarget.date)} | BDT {proofViewTarget.amount.toLocaleString()}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">{proofViewTarget.channel}</p>
+                        </div>
+                        {proofViewTarget.proof_image ? (
+                            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                <img
+                                    src={getImageUrl(proofViewTarget.proof_image)}
+                                    alt={`Transaction proof for ${proofViewTarget.member_name}`}
+                                    className="max-h-[70vh] w-full object-contain bg-gray-50"
+                                />
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+                                No transaction proof image is available.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                open={!!viewTarget}
+                onClose={() => setViewTarget(null)}
+                title={viewTarget ? `${viewTarget.member_name} Transactions` : "Transactions"}
+                maxWidth="max-w-4xl"
+            >
+                {viewTarget && (
+                    <div className="space-y-4">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-800">
+                                        {viewTarget.member_name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        {viewTarget.member_id}
+                                        {viewTarget.phone ? ` • ${viewTarget.phone}` : ""}
+                                        {viewTarget.email ? ` • ${viewTarget.email}` : ""}
+                                    </p>
+                                </div>
+                                <p className="text-sm font-semibold text-green-700">
+                                    Total Deposit: BDT {viewTarget.total.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        {memberTransactionsLoading ? (
+                            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+                                Loading transactions…
+                            </div>
+                        ) : transactionTotal === 0 ? (
+                            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+                                No transactions found for this member.
+                            </div>
+                        ) : (
+                            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr>
+                                                <th className={thCls}>Date</th>
+                                                <th className={thCls}>Channel</th>
+                                                <th className={`${thCls} text-right`}>Amount</th>
+                                                <th className={thCls}>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {transactionRows.map((tx) => (
+                                                <tr key={tx.uuid} className="transition-colors hover:bg-gray-50/80">
+                                                    <td className={tdCls}>{formatDate(tx.date)}</td>
+                                                    <td className={tdCls}>{tx.channel}</td>
+                                                    <td className={`${tdCls} text-right`}>
+                                                        <span className="font-semibold text-gray-900">
+                                                            BDT {tx.amount.toLocaleString()}
+                                                        </span>
+                                                    </td>
+                                                    <td className={tdCls}>
+                                                        <span
+                                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                                                tx.status === "Completed"
+                                                                    ? "bg-green-100 text-green-700"
+                                                                    : tx.status === "Pending"
+                                                                      ? "bg-yellow-100 text-yellow-700"
+                                                                      : "bg-red-100 text-red-600"
+                                                            }`}
+                                                        >
+                                                            {tx.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <Pagination
+                                    page={transactionsPage}
+                                    totalPages={transactionPages}
+                                    onPageChange={setTransactionsPage}
+                                    totalItems={transactionTotal}
+                                    pageSize={TRANSACTION_PAGE_SIZE}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </Modal>
 
             <ConfirmDialog

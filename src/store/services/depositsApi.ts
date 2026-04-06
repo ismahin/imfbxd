@@ -14,6 +14,7 @@ export interface Deposit {
 	date: string;
 	deposit_date: string;
 	status: "Completed" | "Pending" | "Failed";
+	proof_image?: string;
 	created_at?: string;
 }
 
@@ -30,6 +31,7 @@ export interface CreateDepositRequest {
 	channel: string;
 	deposit_date: string;
 	status?: "Completed" | "Pending" | "Failed";
+	proof_image?: File;
 }
 
 export interface DepositStats {
@@ -40,6 +42,17 @@ export interface DepositStats {
 
 const DEPOSITS_TAG = "Deposits" as const;
 const DEPOSITS_STATS_TAG = "DepositsStats" as const;
+
+function buildDepositFormData(body: Partial<CreateDepositRequest>) {
+	const formData = new FormData();
+	if (body.member_uuid != null) formData.append("member_uuid", body.member_uuid);
+	if (body.amount != null) formData.append("amount", String(body.amount));
+	if (body.channel != null) formData.append("channel", body.channel);
+	if (body.deposit_date != null) formData.append("deposit_date", body.deposit_date);
+	if (body.status != null) formData.append("status", body.status);
+	if (body.proof_image) formData.append("proof_image", body.proof_image);
+	return formData;
+}
 
 export const depositsApi = createApi({
 	reducerPath: "depositsApi",
@@ -89,7 +102,7 @@ export const depositsApi = createApi({
 			query: (body) => ({
 				url: "api/web/v1/deposits/",
 				method: "POST",
-				body,
+				body: buildDepositFormData(body),
 			}),
 			invalidatesTags: (result) => [
 				{ type: DEPOSITS_TAG, id: "LIST" },
@@ -100,12 +113,12 @@ export const depositsApi = createApi({
 
 		updateDeposit: builder.mutation<
 			Deposit,
-			{ uuid: string; body: Partial<CreateDepositRequest & { status: string }> }
+			{ uuid: string; body: Partial<CreateDepositRequest> }
 		>({
 			query: ({ uuid, body }) => ({
 				url: `api/web/v1/deposits/${uuid}/`,
 				method: "PATCH",
-				body,
+				body: buildDepositFormData(body),
 			}),
 			invalidatesTags: (_result, _err, { uuid }) => [
 				{ type: DEPOSITS_TAG, id: uuid },
